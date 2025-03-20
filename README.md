@@ -3,13 +3,13 @@
 # DPC Policy Training and Implementation Project
 
 ## 📌 Project Overview
-This project is designed for training and implementing a **Deep Predictive Control (DPC) Policy model**. Specifically, the project provides code for:
+This project is designed for training and implementing a **Differentiable Predictive Control (DPC) Policy model**. Specifically, the project provides code for:
 
 - Defining and training the neural network model (**DPC Policy**).
 - Generating and managing datasets for training.
 - Applying the trained model to real predictive control tasks.
 
-The project leverages a pre-trained prediction model (**TiDE**) provided directly from Reference [2].
+The project leverages a pre-trained prediction model (**TiDE**) provided directly from Reference [2] in the report.
 
 ---
 
