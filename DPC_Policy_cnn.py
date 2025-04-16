@@ -33,44 +33,56 @@ def DPC_loss(model_output: torch.Tensor, target: torch.Tensor, u_output: torch.T
     else:
         return total_loss
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
 class DPC_PolicyCNN(nn.Module):
     def __init__(self, input_channels=6, output_dim=1, output_chunk_length=10,
-                 n_layers=3, kernel_size=3):
+                 channel_list=[64, 64], kernel_size=3, dropout=0.0):
         super().__init__()
         self.output_dim = output_dim
         self.output_chunk_length = output_chunk_length
-        self.n_layers = n_layers
         self.kernel_size = kernel_size
+        self.dropout_rate = dropout
 
-        # 적절한 padding: time dimension 유지
         padding = kernel_size // 2
-
         conv_layers = []
+        in_channels = input_channels
 
-        # 첫 번째 layer
-        conv_layers.append(nn.Conv1d(input_channels, 64, kernel_size=kernel_size, padding=padding))
+        for out_channels in channel_list:
+            conv_layers.append(nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=padding))
+            conv_layers.append(nn.ReLU())
+            if dropout > 0:
+                conv_layers.append(nn.Dropout(p=dropout))
+            in_channels = out_channels
 
-        # 중간 hidden layer들
-        for _ in range(n_layers - 2):
-            conv_layers.append(nn.Conv1d(64, 64, kernel_size=kernel_size, padding=padding))
-
-        # 마지막 convolution layer
-        conv_layers.append(nn.Conv1d(64, 64, kernel_size=kernel_size, padding=padding))
-
-        self.convs = nn.ModuleList(conv_layers)
+        self.conv_net = nn.Sequential(*conv_layers)
         self.flatten = nn.Flatten()
-        self.fc = nn.Linear(64 * window, output_dim * output_chunk_length)
+        self.fc = nn.Linear(channel_list[-1] * window, output_dim * output_chunk_length)
 
     def forward(self, x_in):
         x, x_future_covariates, c_fut, _ = x_in
 
+        def ensure_3d(tensor, name=""):
+            if tensor is None:
+                return tensor
+            if tensor.ndim == 2:
+                tensor = tensor.unsqueeze(-1)
+                print(f"[INFO] {name} was 2D, reshaped to 3D: {tensor.shape}")
+            elif tensor.ndim == 1:
+                tensor = tensor.unsqueeze(0).unsqueeze(-1)
+                print(f"[INFO] {name} was 1D, reshaped to 3D: {tensor.shape}")
+            return tensor
+
+        x = ensure_3d(x, "x")
+        x_future_covariates = ensure_3d(x_future_covariates, "x_future_covariates")
+        c_fut = ensure_3d(c_fut, "c_fut")
+
         x_all = torch.cat([x, x_future_covariates, c_fut], dim=2)  # [B, 10, 6]
         x_all = x_all.permute(0, 2, 1)  # [B, C=6, T=10]
+        x_feat = self.conv_net(x_all)
+        x_feat = self.flatten(x_feat)
+        x_out = self.fc(x_feat)
 
-        for conv in self.convs:
-            x_all = F.relu(conv(x_all))
-
-        x = self.flatten(x_all)
-        x = self.fc(x)
-
-        return x.view(x.shape[0], self.output_chunk_length, self.output_dim, 1)
+        return x_out.view(x_out.shape[0], self.output_chunk_length, self.output_dim, 1)

@@ -23,8 +23,8 @@ def DPC_loss(model_output: torch.Tensor, target: torch.Tensor, u_output: torch.T
     constraint_loss = low_violation + up_violation  
 
     tracking_loss = torch.sqrt(errors.mean())
-    smoothness_loss = 0.1 * torch.sqrt(squared_diff.mean())
-    constraint_loss = 3 * torch.sqrt(constraint_loss.mean())
+    smoothness_loss = 10 * torch.sqrt(squared_diff.mean())
+    constraint_loss = 2 * torch.sqrt(constraint_loss.mean())
 
     total_loss = tracking_loss + smoothness_loss + constraint_loss
 
